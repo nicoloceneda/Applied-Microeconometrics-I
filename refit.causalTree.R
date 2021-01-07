@@ -1,17 +1,25 @@
-# Refit causal tree; used for getting honest trees
-#
-# object: the original causalTree object
-# newx: the fresh training data features, for honest estimation
-# newy: outcomes for new data
-# treatment: treatment assignments for new data
-# propensity: If NULL, we estimate a CT. If provided, estimate a TOT.
+# ------------------------------------------------------------------------------
+# Refit Causal Tree
+# ------------------------------------------------------------------------------
 
-refit.causalTree <- function(object, newx, newy, treatment, na.action = na.causalTree, propensity = NULL) {
+# Used for getting honest trees
+
+refit.causalTree <- function(object,                                            # object: original causal tree <- tree.propensity
+                             newx,                                              # newx: new training features <- tree.DF[full.idx,]
+                             newy,                                              # newy: new training outcomes <- Y[full.idx]
+                             treatment,                                         # treatment: new training treatment assignments <- W[full.idx]
+                             na.action = na.causalTree,                         # how NAs are treated
+                             propensity = NULL) {                               # propensity: If NULL, we estimate a CT (causal tree). 
+                                                                                # If provided, estimate a TOT (transformed outcome tree)
+  # ----------------------------------------------------------------------------
+  # Preliminary checks
+  # ----------------------------------------------------------------------------
   
+  # Check validity of inputs
   if (!inherits(object, "causalTree")) stop("Not a legitimate \"causalTree\" object")
+  if (length(newy) != length(treatment)) stop("The vectors newy and treatment must have the same length.")
   
-  if(length(newy) != length(treatment)) stop("The vectors newy and treatment must have the same length.")
-  
+  # Check the type of tree to implement
   mode = "CT"
   if(!is.null(propensity)) {
     mode = "TOT"
@@ -20,40 +28,53 @@ refit.causalTree <- function(object, newx, newy, treatment, na.action = na.causa
     }
   }
   
-  nodes <- as.numeric(row.names(object$frame))
-  num <- length(nodes)
+  # ----------------------------------------------------------------------------
+  # Generate new data
+  # ----------------------------------------------------------------------------
   
-  Terms <- object$terms
-  data <- model.frame(Terms, newx, na.action = na.action, xlev = attr(object, "xlevels"))
-  if (!is.null(cl <- attr(Terms, "dataClasses"))) {
+  # Compute number of nodes
+  nodes <- as.numeric(row.names(object$frame))                                  # Nodes at which the split is done
+  num <- length(nodes)                                                          # Number of nodes
+  
+  # Training data
+  Terms <- object$terms                                                         # Terms of tree.propensity
+  data <- model.frame(Terms,                                                    # Dataframe with 6 cols (W,X1,...,X5) and 50 rows (i in I)...
+                      newx,                                                     # ...equivalent to tree.DF[full.idx,] in propensityForest.R
+                      na.action = na.action, 
+                      xlev = attr(object, "xlevels"))
+  
+  if (!is.null(cl <- attr(Terms, "dataClasses"))) {                             # Checks if  variables used in predict method same type as those used in fitting
     .checkMFClasses(cl, newx, TRUE)
   }
   
-  where <- est.causalTree(object, causalTree.matrix(data))
+  where <- est.causalTree(object, causalTree.matrix(data))                      # Estimate causal tree
   
   if (mode == "CT") {
     
     Y <- newy
-    
-    ## begin to compute the yval and dev:
-    # initialize:
-    # where num is number of nodes
-    y1 <- rep(NA, num)
+
+    # Initialize
+    y1 <- rep(NA, num)                                                          # Replicates num times NA
     y0 <- rep(NA, num)
     dev1 <- rep(NA,num)
     dev0 <- rep(NA,num)
     count1 <- rep(0, num)
     count0 <- rep(0, num)
     
-    # for loop to insert values:
+    # For-loop to insert values
     for (i in 1:nrow(newx)) {
+      
       node_id <- where[i]
+      
       while (node_id > 0) {
+        
         index <- which(nodes == node_id)
+        
         if (treatment[i] == 1) {
           y1[index] <- sum(y1[index], Y[i], na.rm = T)
           dev1[index] <- sum(dev1[index], Y[i] * Y[i], na.rm = T)
           count1[index] <- count1[index] + 1
+          
         } else {
           y0[index] <- sum(y0[index], Y[i], na.rm = T)
           dev0[index] <- sum(dev0[index], Y[i] * Y[i], na.rm = T)
