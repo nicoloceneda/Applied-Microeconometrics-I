@@ -26,8 +26,8 @@ n.test = 100                                                                    
 dvals = c(2, 5, 10, 15, 20, 30)                                                 # Number of features {d}
 sigma = 1                                                                       # Volatility {sigma}
 
-ntree = 100 #1000                                                               # Number of trees {B}
-simu.reps = 100 #500                                                            # Number of simulations
+ntree = 500 #1000                                                               # Number of trees {B}
+simu.reps = 250 #500                                                            # Number of simulations
 
 # ------------------------------------------------------------------------------
 # Simulation function:
